@@ -31,6 +31,15 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 - A status change unpins immediately and returns the tab to its stored position.
 - Right-click **Pin / Unpin** pins a tab manually: persisted, drag-sortable inside the manual pin group, and an idle pinned tab shows a pin glyph in the status slot.
 
+### System notifications
+
+- When a session **finishes (unread)** or **needs your attention (waiting)**, the plugin raises an OS notification titled "Session finished" / "Needs your attention", with the workspace and session title as the body.
+- It stays quiet while the window is focused and you are looking at that same session; background, minimised or other-session cases notify.
+- Clicking the notification focuses DSH and switches to that tab.
+- It uses the renderer's `Notification` API (the same mechanism ds-bot uses for approval alerts), so there is no extra dependency. On macOS the first delivery asks to allow notifications for DeepSeek Harness.
+- Manual check: run `window.__dshSessionTabs.notify('done')` or `notify('pending')` in DevTools.
+- Limitation: it only runs while a DSH client is running (no notification after the window/process is closed).
+
 ### Closing
 
 - `×` closes the tab only: it never deletes, archives or stops a session; running or waiting sessions stay retained in the background until idle.

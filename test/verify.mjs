@@ -629,4 +629,57 @@ test('the strip renders the workspace line in its own smaller row',()=>{
   assert.match(f.plugin.CSS,/\.dsst-workspace\{[^}]*font-size:10px/);
   f.ctx.dispose();
 });
+function notificationFixture(permission){
+  const calls=[];
+  class FakeNotification{constructor(title,opts){this.title=title;this.opts=opts;this.closed=false;calls.push(this);}close(){this.closed=true;}}
+  FakeNotification.permission=permission||'granted';FakeNotification.requested=0;
+  FakeNotification.requestPermission=()=>{FakeNotification.requested++;return Promise.resolve('granted');};
+  const raw=JSON.stringify({version:1,ids:['a','b','c'],active:'a',pins:[]});
+  const f=mounted(dom=>{dom.extra.Notification=FakeNotification;dom.window.localStorage={getItem:key=>key==='dsh-session-tabs.v1'?raw:null,setItem(){}};});
+  return {f,calls,Notification:FakeNotification};
+}
+test('finished and attention-needing sessions raise an OS notification',()=>{
+  const {f,calls}=notificationFixture();
+  f.status.value.set('b',{running:true});f.status.emit();f.dom.flush();
+  f.status.value.set('b',{running:false,completionUnread:true});f.status.emit();f.dom.flush();
+  assert.equal(calls.length,1);assert.equal(calls[0].title,'会话已完成');assert.ok(calls[0].opts.body.includes('B'));
+  assert.equal(calls[0].opts.tag,'dsh-session-tabs:b');
+  f.status.value.set('c',{running:true,pendingInteraction:{key:'approval-c'}});f.status.emit();f.dom.flush();
+  assert.equal(calls.length,2);assert.equal(calls[1].title,'等待你的处理');
+  f.ctx.dispose();
+});
+test('notifications open the matching tab when clicked',()=>{
+  const {f,calls}=notificationFixture();
+  f.status.value.set('b',{running:true});f.status.emit();
+  f.status.value.set('b',{running:false,completionUnread:true});f.status.emit();
+  assert.equal(calls.length,1);
+  calls[0].onclick();
+  assert.equal(f.window.__dshSessionTabs.snapshot().active,'b');
+  assert.equal(calls[0].closed,true);
+  f.ctx.dispose();
+});
+test('no notification while the same session is focused, and none without permission',()=>{
+  const {f,calls,Notification}=notificationFixture('default');
+  f.dom.doc.visibilityState='visible';f.dom.doc.hasFocus=()=>true;
+  f.status.value.set('a',{running:true});f.status.emit();
+  f.status.value.set('a',{running:false,completionUnread:false,pendingInteraction:{key:'k'}});f.status.emit();
+  assert.equal(Notification.requested>=1,true,'permission is requested once');
+  assert.equal(calls.length,0,'no delivery before the permission is granted');
+  Notification.permission='granted';
+  f.status.value.set('b',{running:true});f.status.emit();
+  f.status.value.set('b',{running:false,pendingInteraction:{key:'k2'}});f.status.emit();
+  assert.equal(calls.length,1,'the active focused row stays silent, the background one notifies');
+  f.dom.doc.hasFocus=()=>false;
+  f.status.value.set('a',{running:false});f.status.emit();
+  f.status.value.set('a',{running:false,pendingInteraction:{key:'k3'}});f.status.emit();
+  assert.equal(calls.length,2,'losing focus makes the active row notify again');
+  f.ctx.dispose();
+});
+test('unrelated status changes stay quiet',()=>{
+  const {f,calls}=notificationFixture();
+  f.status.value.set('b',{running:true});f.status.emit();
+  f.status.value.set('b',{running:false});f.status.emit();
+  assert.equal(calls.length,0);
+  f.ctx.dispose();
+});
 function aCellOf(host,id){return host.querySelector('[data-dsst-tab="'+id+'"]');}

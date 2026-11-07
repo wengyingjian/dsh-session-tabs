@@ -1,7 +1,7 @@
 {
   "name": "dsh-session-tabs",
-  "version": "0.1.6",
-  "description": "Single-client session tabs preserving native sidebars and background work",
+  "version": "0.2.0",
+  "description": "Single-client session tabs with workspace labels, status pinning and guarded bulk close (fork of DEVbyQIN/dsh-session-tabs)",
   "icon": "./icon.svg",
   "type": "module",
   "main": "index.mjs",
@@ -41,11 +41,11 @@
   "author": "QIN-SMART",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/QIN-SMART/dsh-session-tabs.git"
+    "url": "git+https://github.com/wengyingjian/dsh-session-tabs.git"
   },
-  "homepage": "https://github.com/QIN-SMART/dsh-session-tabs#readme",
+  "homepage": "https://github.com/wengyingjian/dsh-session-tabs#readme",
   "bugs": {
-    "url": "https://github.com/QIN-SMART/dsh-session-tabs/issues"
+    "url": "https://github.com/wengyingjian/dsh-session-tabs/issues"
   },
   "publishConfig": {
     "access": "public",

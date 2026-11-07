@@ -1,102 +1,116 @@
-# 轻量会话标签 / dsh-session-tabs
+# 轻量会话标签（个人定制版）/ dsh-session-tabs
 
-单客户端会话标签，复用 DSH 原生聊天视图和任务服务，保留左右侧栏及底部工作台。无 iframe，无运行时依赖。
+复用 DSH 原生聊天视图的会话标签栏：左右侧栏、底部工作台保持原生，无 iframe、无运行时依赖。本仓库是上游 **0.1.6** 的 fork，在它之上做了「更紧凑的两行标签、工作区展示、状态置顶、批量关闭保护」等定制。
 
-[English](README_EN.md) · 版本 0.1.6 · MIT
+[English](README_EN.md) · MIT · 基于上游 v0.1.6
 
-[![verify](https://github.com/QIN-SMART/dsh-session-tabs/actions/workflows/verify.yml/badge.svg)](https://github.com/QIN-SMART/dsh-session-tabs/actions/workflows/verify.yml)
-[![npm](https://img.shields.io/npm/v/dsh-session-tabs.svg)](https://www.npmjs.com/package/dsh-session-tabs)
+[![verify](https://github.com/wengyingjian/dsh-session-tabs/actions/workflows/verify.yml/badge.svg)](https://github.com/wengyingjian/dsh-session-tabs/actions/workflows/verify.yml)
 
-![合成会话中的标签栏与面板按钮](https://raw.githubusercontent.com/QIN-SMART/dsh-session-tabs/main/docs/assets/session-tabs.png)
+## 来源与授权
 
-## 当前状态
+- **Fork 自**：[DEVbyQIN/dsh-session-tabs](https://github.com/DEVbyQIN/dsh-session-tabs)（原作者 **QIN-SMART**，GitHub 上原 `QIN-SMART/dsh-session-tabs` 会重定向到这里）
+- **基线**：上游 `v0.1.6`（commit `aa4cb30`）；本仓库版本 **0.2.0**
+- **授权**：MIT，版权归原作者（见 [LICENSE](LICENSE)）；本仓库的修改同样以 MIT 发布，并保留原作者署名。
+- **注意**：本仓库的定制版**没有发布到 npm**。npm 上的 `dsh-session-tabs` 是上游原版，不包含下面这些功能。
 
-**0.1.6 修复了 0.1.5 中打开插件管理等全局页面时整个窗口卡死的问题，建议 0.1.5 用户更新。**
+## 功能
 
-已针对 DSH **0.2.0-rc.2** 验证，源代码采用 MIT 协议。DSH 的客户端 API 仍在演化，升级宿主后需要重新验收。
+### 标签栏
 
-## 使用
+- **两行标签**：上行 10px 三级灰显示会话所属**工作区**（取工作区标题，没有标题时用路径末段；会话不属于任何工作区则隐藏该行、标题居中），下行 13px 会话标题；两行左对齐，各自超出省略。
+- **紧凑**：条高 46px、标签高 40px；标签宽 60–168px，文字列上限 108px；字号 13px。
+- 当前标签使用内容区表面并与下方内容连通（两侧反向圆角），其他标签落在较暗条底上；跟随 DSH 的亮/暗主题。
+- `＋` 紧跟标签并调用原生新建；标签行右端是底部工作台与右侧栏的原生代理按钮（复用原生图标、状态和点击）。
+- 左栏底部的线条图标在「标签视图 / 原生视图」之间切换。
 
-- 原生左栏打开的会话自动加入顶部标签。点击标签切换，`＋` 使用原生新建会话。
-- 当前标签与内容区使用同一亮色表面，通过两侧底部反向圆角衔接；其他标签在较暗背景上，悬停时标题和关闭按钮共用一块灰色底色。跟随 DSH 的亮/暗主题。
-- `＋` 紧跟标签，与 `×` 图标居中对齐，旁边不再显示 `⋯`。底部工作区和右侧栏入口位于标签行右端，复用对应原生按钮的图标、状态和点击事件。右栏展开后，中央的打开入口隐藏，只保留窗口最右侧原生收起按钮；打开按钮采用相同的 28px 点击区域和 15px 图标。原生其他标题栏按钮保持原位。缺少原生入口时不显示对应按钮，切回原生视图或卸载时恢复原入口。
-- 右栏开关位置在动画期间固定保留，底部按钮不会挤进来。收起时若原生打开入口尚未恢复，该位置暂时禁用；就绪后恢复点击。两个按钮均使用 28px 点击区域并居中对齐，底部图标沿用原生 16px。
-- `×` 只关闭标签，不删除、归档或停止会话。运行或待确认的会话在后台保留，结束后释放额外引用。
-- 左栏底部的「标签窗口」线条图标用于显示/隐藏标签，悬停显示目标视图名称。焦点在标签栏内时，`⌘/Ctrl + Shift + T` 可恢复本次打开窗口内刚关闭的标签；输入框不拦截此快捷键。
-- 拖动调整顺序：移动超过 10px 才算拖拽，拖拽时标签跟随指针、光标变抓取状、其他标签实时让位；点按不会被误判，标签文字也不可选中。标签获得焦点后，左右方向键切换，`Alt + Shift + 左/右` 调整顺序。输入框没有新增全局快捷键，中文组字不受拦截。
-- 每个标签两行：上行小字是会话所属工作区（重名时取路径末段，没有工作区就只显示标题居中），下行是会话标题；条高相应加到 46px。
-- 右键标签可置顶 / 取消置顶、关闭其他 / 左侧 / 右侧（复用宿主原生右键菜单，无可操作目标时对应项置灰）。批量关闭跳过运行中、待确认、未读完成和手动置顶的标签，也不取消后台任务；`⌘/Ctrl + Shift + T` 按关闭顺序逐个恢复。
-- 运行中、待确认、未读完成的标签自动吸到最左（优先级：待确认 > 未读完成 > 运行中），手动置顶的标签排在最前；置顶区不随普通标签横向滚动，最多占半条标签栏，超出时自己滚动。解除置顶后回到原位置。
-- 状态一律是实心圆点：运行中蓝、待确认黄、完成未读绿、连接中灰；空闲不显示圆点，手动置顶且空闲时圆点槽位显示图钉。
+### 状态与置顶
 
-关闭整个客户端、卸载插件与关闭标签是不同操作。原生任务的存续仍由宿主负责。不同会话同时修改同一文件的冲突也仍由宿主与用户处理。
+- 状态一律是**实心圆点**：运行中蓝、待确认黄、完成未读绿、连接中灰；空闲不显示圆点。
+- 运行中 / 待确认 / 完成未读的标签**自动吸到最左**，优先级 **待确认 > 完成未读 > 运行中**，同一状态内按原标签顺序。
+- 置顶区**固定不滚动**：普通标签横向滚动时置顶标签不动；置顶区最多占半条标签栏，超出时在置顶区内部滚动。
+- 状态消失立即取消置顶，回到持久顺序里的原位置。
+- 右键「**置顶 / 取消置顶**」手动钉住：持久化，可在手动置顶组内拖拽排序；手动置顶且空闲时，状态圆点槽位显示图钉。
 
-## 安装与回退
+### 关闭
 
-### 从 npm 安装和下载（推荐）
+- `×` 只关闭标签，不删除、不归档、不停止会话；运行中或待确认的会话在后台保留，结束后释放引用。
+- 关闭按钮在**所有标签里预留 20px**，悬停/聚焦只切换显隐，标签宽度不会跳动。
+- 右键「关闭其他 / 关闭左侧 / 关闭右侧」：**跳过**运行中、待确认、完成未读和手动置顶的标签；没有可关闭目标时菜单项置灰；批量关闭同样不取消后台任务。
+- 标签栏内有焦点时 `⌘/Ctrl + Shift + T` 按关闭顺序恢复最近关闭的标签（最多 20 个）。
 
-npm 页面：[dsh-session-tabs](https://www.npmjs.com/package/dsh-session-tabs)。建议先在独立 profile 试用。
+### 交互
 
-**Desktop：**在应用内插件管理器添加 `dsh-session-tabs`。
+- 点击标签切换；标签文字不可选中，不会误触文本选择。
+- **拖拽**：横向移动 ≥12px 才进入拖拽（点按不会被误判）；拖起的标签抬起、光标变抓取、同组内实时让位。
+- **跨组拖拽会被拒绝**（禁放光标、标签不动、松手不改变任何状态），因为置顶组的顺序由状态或手动置顶决定。
+- 松手、窗口失焦、页面切后台都会结束拖拽，不会卡在拖拽中。
+- 标签获得焦点后 ←/→ 切换，`Alt + Shift + ←/→` 在同组内调整顺序；`Shift+F10` 或菜单键打开右键菜单。
+- 标签顺序、手动置顶、启用偏好存于 `localStorage['dsh-session-tabs.v1']`，刷新后恢复。
 
-**Web：**使用 DSH 命令安装：
+## 与上游 0.1.6 的差异
+
+| | 上游 0.1.6 | 本 fork |
+| --- | --- | --- |
+| 标签行数 | 单行标题 | 两行：工作区小字 + 标题 |
+| 尺寸 | 条高 47/48，字体 14px，标签宽 78–210 | 条高 46，字体 13px，标签宽 60–168 |
+| 状态标记 | `●` `!` `✓` `…` 字符 | 统一实心圆点（蓝/黄/绿/灰） |
+| 置顶 | 无 | 状态自动置顶 + 右键手动置顶，固定不滚动 |
+| 批量关闭 | 直接关闭 | 跳过运行中/待确认/未读完成/手动置顶 |
+| 关闭按钮 | 常显或悬停出现（改变宽度） | 预留 20px，悬停只显隐 |
+| 拖拽 | 原生 HTML5 拖拽（几像素就触发，会吞点击） | 指针拖拽 + 12px 阈值 + 实时重排 |
+| 右键菜单 | 关闭其他/左侧/右侧 | 置顶/取消置顶 + 关闭三项（按保护规则置灰） |
+
+## 安装
+
+本仓库不发布 npm，以下方式任选。
+
+**本地 clone（开发推荐）**
 
 ```sh
-dsh plugin --profile web add dsh-session-tabs@0.1.6
+git clone https://github.com/wengyingjian/dsh-session-tabs.git
+cd dsh-session-tabs
+dsh plugin --profile desktop add link:$PWD
 ```
 
-如果使用 npm 手动管理 profile，先进入目标 profile 目录，再执行：
+装完重启 DSH；之后改 `lib/client.js` 只需刷新页面（桌面窗口不热更新，改动代码后要重启一次）。
+
+**直接从 GitHub 安装**
 
 ```sh
-npm install dsh-session-tabs@0.1.6 --ignore-scripts
+dsh plugin --profile desktop add github:wengyingjian/dsh-session-tabs
 ```
 
-手动安装包后，还需在该 profile 的 `dsh.profile.bundles` 中启用 `dsh-session-tabs`，再刷新或重开 DSH；DSH 插件管理器和上面的 `dsh plugin` 命令会处理插件启用。
+**上游 npm 原版**（不含本仓库功能）：在插件管理器添加 `dsh-session-tabs`，或 `dsh plugin --profile desktop add dsh-session-tabs@0.1.6`。
 
-**只下载离线安装包：**在希望保存文件的目录运行：
+**回退 / 移除**：左栏底部图标可切回原生视图；在插件管理器移除 `dsh-session-tabs` 后刷新，注入的节点、样式、订阅与会话引用会清理；浏览器里的标签清单可清除站点 `dsh-session-tabs.v1` 键。
 
-```sh
-npm pack dsh-session-tabs@0.1.6
-```
+## 兼容性
 
-会生成 `dsh-session-tabs-0.1.6.tgz`，可在 DSH 插件管理器中用该文件的完整路径添加。
-
-### 从 GitHub 安装
-
-```sh
-dsh plugin --profile web add github:QIN-SMART/dsh-session-tabs
-```
-
-CLI 的 `--profile desktop` 是保留名称，不能套用上述 Web 命令。已有本地安装的用户可在目标 profile 的包管理器更新为 `dsh-session-tabs@0.1.6`，再完全退出并重开应用。开发用的模拟模型和测试 profile 不包含在 npm 包中。
-
-临时回退：点击左栏底部的视图切换图标。完整移除：在目标 profile 的插件管理器移除 `dsh-session-tabs`，再刷新客户端；注入节点、样式、订阅与会话引用会清理。浏览器本地标签清单仍保留，可在需要时清除该站点的 `dsh-session-tabs.v1` 键。
-
-## 状态和性能
-
-标签顺序、启用偏好及活动身份存于 `localStorage['dsh-session-tabs.v1']`。刷新恢复标签；失效/归档 ID 会剔除。不同窗口同步偏好与标签身份，但不会抢占另一个窗口的当前会话。
-
-只有一棵原生聊天视图。重开客户端时，非活动标签只恢复身份，不立即加载全部历史。已经访问过的标签保留轻量会话绑定，以沿用原生草稿/附件状态；其数量仍会影响内存，因此本插件不承诺无限标签或固定内存开销。草稿沿用原生机制，本插件不提供跨重启草稿持久化保证。
-
-标签节点按身份复用，点击后立即更新标签；后台状态通知合并更新，浏览器存储写入短暂合并。实际会话内容仍由宿主原生导航加载，不能保证所有开关操作即时完成。实际验证范围与兼容性边界见 [验收说明](docs/validation.md)。
-
-中心挂载点使用稳定 `data-slot="main"`，没有专用的官方标签栏插槽；宿主结构变化是主要兼容性风险。原生 sidebar/rightbar 插槽和右栏服务没有被替换或代理。顶栏入口仅转发到仍留在原处的原生控件，不搬动 React 管理的节点。若挂载失败，回滚新增节点并保留原生界面。
+- 上游基线在 **DSH 0.2.0-rc.2** 上验证。
+- 本 fork 实测环境：**DSH 0.2.2-rc.1（macOS Desktop）**，62 项单测 + 真实 GUI 冒烟（条高、两行工作区、置顶区、右键菜单、拖拽与点击）。
+- DSH 客户端 API 仍在演化，升级宿主后需重新验收；中心挂载点使用稳定的 `data-slot="main"`，宿主结构调整是主要兼容性风险。
+- 已知第三方行为：DS Bot 视图里打开空白「新会话」会被 ds-bot 的守夜逻辑拉回 Main Bot，与本插件无关。
+- 上游 0.1.6 及更早的验收记录保留在 [docs/validation.md](docs/validation.md)。
 
 ## 开发与验收
 
-开发本仓库时：
-
 ```sh
-node --test test/verify.mjs
-node tools/start-test-profile.mjs --runtime /absolute/path/to/installed/@deepseek-ai/dsh --port 3096
-# 可选复用已安装的右栏插件：--better-sidebar /absolute/path/to/dsh-better-sidebar
+node --test test/verify.mjs                        # 单元测试（无依赖，秒级）
+node tools/real-ui-check.mjs --url http://127.0.0.1:<port> --global __dshSessionTabs
 ```
 
-测试数据、profile 和日志仅写入本仓库 `.tmp/`。测试模型 `Local delayed echo` 本地流式输出约 60 秒，无网络模型请求；需在界面中明确选择该模型后发送合成任务。它仅用于验证并发、关闭和取消隔离。
+`test/verify.mjs` 在 mock DOM 上加载真实产物；`tools/real-ui-check.mjs` 用 CDP 驱动真实 WebUI 做冒烟检查并截图（`--url` 换成当前 DSH 的地址）。`tools/start-test-profile.mjs` 可启动隔离 profile，需要本机已安装的 `@deepseek-ai/dsh` 包路径。
 
-真实 GUI 冒烟：`node tools/real-ui-check.mjs --url-file /absolute/path/to/test-url.txt --out docs/real-ui.png`，URL 文件仅保存隔离服务启动时给出的本机认证 URL，不提交。连接自己启动的 Electron 验收副本可用 `--connect-port 9346 --target-match <observed-main-target>`。`--edge-ui-check` 检查右栏开关；配合 `--handoff-ui-check` 在上述合成会话中检查底部按钮规格、连续点击和动画期间的位置。范围见 [验收说明](docs/validation.md)。
+仓库结构：
 
-源码不需要构建，`lib/client.js` 即真实客户端产物；`npm pack` 只包含生产插件和说明，不包含测试模型、日志、profile、桌面副本或截图。
+| 路径 | 作用 |
+| --- | --- |
+| `lib/client.js` | 全部浏览器侧行为（标签栏、置顶、右键菜单、拖拽） |
+| `index.mjs` | 宿主半边，故意保持惰性 |
+| `cordis.patch.yml` | 让插件成为一条启用的 Loader entry |
+| `test/` | mock DOM 回归测试 |
+| `tools/` | 真实 GUI 冒烟与隔离 profile 启动脚本 |
 
 ## License
 
-[MIT](LICENSE)。
+[MIT](LICENSE)，版权 (c) 2026 QIN-SMART（上游作者）；本仓库的修改同样以 MIT 发布。

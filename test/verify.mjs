@@ -44,7 +44,7 @@ test('published module shape, lazy import, declared services and metadata',()=>{
   assert.equal(pkg.dsh.client.platform,'web');
 });
 test('parse rejects malformed, future and unsafe data; de-duplicates and bounds IDs',()=>{
-  const {plugin}=load();assert.deepEqual(plain(plugin.parse('{')), {version:1,enabled:true,ids:[],active:null});
+  const {plugin}=load();assert.deepEqual(plain(plugin.parse('{')), {version:1,enabled:true,ids:[],active:null,pins:[]});
   assert.equal(plugin.parse('{"version":2,"ids":["x"]}').ids.length,0);
   const state=plugin.parse({version:1,ids:['a','a','',3,null,'\u0000',...Array.from({length:250},(_,i)=>'s'+i)],active:'a'});
   assert.equal(state.ids.length,200);assert.equal(state.ids[0],'a');assert.equal(state.active,'a');assert.deepEqual(plain(plugin.parse(plugin.serialize(state))),plain(state));
@@ -81,6 +81,41 @@ test('closing a running tab never cancels and retains it until idle',()=>{
 test('pending interaction outranks running and closing preserves its ownership',()=>{
   const f=fixture();f.controller.open('b');f.status.value.set('a',{running:true,pendingInteraction:{key:'approval-a'}});f.status.emit();assert.equal(f.controller.status('a'),'pending');
   f.controller.close('a');assert.equal(f.refs.find(r=>r.id==='a').released,false);f.controller.dispose();
+});
+test('bulk close keeps running, pending, unread and manually pinned tabs',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.list.value.byId.a.running=true;f.status.value.set('a',{running:true});f.status.emit();
+  f.status.value.set('b',{running:true,pendingInteraction:{key:'approval-b'}});f.status.emit();
+  assert.equal(f.controller.closeOthers('c'),false,'every other tab is guarded');
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c']);assert.equal(f.controller.snapshot().active,'c');
+  f.status.value.set('b',{running:false,completionUnread:true});f.status.emit();
+  assert.equal(f.controller.closeOthers('c'),false,'unread completion is guarded too');
+  f.controller.pin('a');
+  assert.equal(f.controller.closeOthers('c'),false,'manual pin is guarded too');
+  assert.equal(f.refs.find(r=>r.id==='a').released,false);assert.equal(f.refs.find(r=>r.id==='b').released,false);
+  assert.equal(f.calls.some(c=>['cancel','delete','archive'].includes(c[0])),false);f.controller.dispose();
+});
+test('bulk close still removes the unguarded tabs and keeps the anchor current',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  assert.equal(f.controller.closeOthers('a'),true);
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a']);assert.equal(f.controller.snapshot().active,'a');
+  f.controller.dispose();
+});
+test('close left and right stop at the edges and move the current tab only when it is closed',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  assert.equal(f.controller.closeLeft('a'),false);assert.equal(f.controller.closeRight('c'),false);
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c']);assert.equal(f.controller.snapshot().active,'c');
+  assert.equal(f.controller.closeLeft('b'),true);
+  assert.deepEqual(plain(f.controller.snapshot().ids),['b','c']);assert.equal(f.controller.snapshot().active,'c');
+  assert.equal(f.controller.closeRight('b'),true);
+  assert.deepEqual(plain(f.controller.snapshot().ids),['b']);assert.equal(f.controller.snapshot().active,'b');
+  assert.equal(f.calls.some(c=>['cancel','delete','archive'].includes(c[0])),false);f.controller.dispose();
+});
+test('bulk close unwinds through the shared closed stack',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');f.controller.closeOthers('a');
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a']);
+  f.controller.reopen();assert.deepEqual(plain(f.controller.snapshot().ids),['a','c']);
+  f.controller.reopen();assert.deepEqual(plain(f.controller.snapshot().ids),['a','c','b']);f.controller.dispose();
 });
 test('close active selects a neighbour; final close creates a blank without readding the old tab',()=>{
   const f=fixture();f.controller.open('b');f.controller.close('b');assert.equal(f.controller.snapshot().active,'a');
@@ -125,7 +160,39 @@ test('implementation forbids client cloning, sidebar replacement, global keys an
   assert.doesNotMatch(source,/(?:document|window)\.addEventListener\(['"]keydown/);assert.match(source,/e\.isComposing\|\|e\.keyCode===229/);
   const {plugin}=load();assert.doesNotMatch(plugin.CSS,/[A-Za-z0-9_]{6,}_(?:root|header|frame)/);assert.match(plugin.CSS,/-webkit-app-region:no-drag/);
 });
-function mounted(setup){const f=fixture();f.controller.dispose();const dom=domFixture();setup?.(dom);const {plugin,window}=load(dom.extra);const ctx=new TestContext(f.services,plugin.inject);plugin.apply(ctx);dom.flush();return {...f,dom,plugin,window,ctx};}
+function mounted(setup,opts){const f=fixture(opts);f.controller.dispose();const dom=domFixture();setup?.(dom);const {plugin,window}=load(dom.extra);const ctx=new TestContext(f.services,plugin.inject);plugin.apply(ctx);dom.flush();return {...f,dom,plugin,window,ctx};}
+test('without the host menu service right-click keeps the native behaviour',()=>{
+  const f=mounted(),host=f.dom.center.firstChild,cell=host.querySelector('[data-dsst-tab]');
+  let prevented=false;
+  f.dom.dispatch(cell.querySelector('[data-dsst-action="open"]'),'contextmenu',{clientX:10,clientY:10,preventDefault(){prevented=true;}});
+  assert.equal(prevented,false,'no menu service must leave the native right-click alone');f.ctx.dispose();
+});
+test('right-clicking a tab opens the host menu scoped to that tab without switching',()=>{
+  const raw='{"version":1,"ids":["a","b","c"],"active":"a"}';
+  const f=mounted(dom=>{dom.window.localStorage={getItem:key=>key==='dsh-session-tabs.v1'?raw:null,setItem(){}};});
+  const seen=[];f.services.contextMenus={register:input=>{seen.push({registered:input});return()=>seen.push({off:true});},open:(target,point)=>seen.push({open:target,point})};
+  const host=f.dom.center.firstChild,cell=host.querySelector('[data-dsst-tab="a"]'),select=cell.querySelector('[data-dsst-action="open"]');
+  let prevented=false;
+  f.dom.dispatch(select,'contextmenu',{clientX:120,clientY:30,preventDefault(){prevented=true;}});
+  assert.equal(prevented,true,'a handled right-click keeps the native menu closed');
+  const registered=seen.find(x=>x.registered).registered,open=seen.find(x=>x.open);
+  assert.equal(registered.target,'dsh-session-tabs.tab');
+  assert.deepEqual(plain(open.open),{kind:'dsh-session-tabs.tab',value:{id:'a'}});assert.deepEqual(plain(open.point),{x:120,y:30});
+  assert.equal(f.calls.some(c=>c[0]==='open'&&c[1]==='a'),false,'right-click must not switch tabs');
+  assert.deepEqual(plain(registered.resolve({id:'a'}).map(a=>[a.id,a.disabled,a.label])),[
+    ['pin',null,'置顶'],['close-others',false,'关闭其他'],['close-left',true,'关闭左侧'],['close-right',false,'关闭右侧']]);
+  assert.deepEqual(plain(registered.resolve({id:'b'}).map(a=>a.disabled)),[null,false,false,false]);
+  const actions=registered.resolve({id:'a'});
+  actions[0].run();
+  assert.deepEqual(plain(f.window.__dshSessionTabs.snapshot().pins),['a']);
+  assert.equal(registered.resolve({id:'a'})[0].label,'取消置顶');
+  assert.equal(registered.resolve({id:'a'})[1].label,'关闭其他');
+  registered.resolve({id:'a'})[1].run();
+  assert.deepEqual(plain(f.window.__dshSessionTabs.snapshot().ids),['a']);
+  assert.deepEqual(plain(f.window.__dshSessionTabs.snapshot().pins),['a'],'a pinned anchor cannot be bulk closed');
+  f.window.__dshSessionTabs.dispose();
+  assert.equal(seen.some(x=>x.off),true,'dispose must unregister the menu contribution');
+});
 test('actual apply mounts only the center and leaves both native sidebar nodes intact',()=>{
   const f=mounted();assert.equal(f.dom.center.firstChild.getAttribute('data-dsh-session-tabs'),'');assert.equal(f.dom.native.getAttribute('data-dsh-session-tabs-main'),'');
   assert.equal(f.dom.left.textContent,'native left');assert.equal(f.dom.right.textContent,'native right');assert.deepEqual(f.dom.left.attrs,{'data-slot':'sidebar'});assert.deepEqual(f.dom.right.attrs,{'data-slot':'rightbar'});
@@ -373,3 +440,193 @@ test('native panel sources ignore hidden retained session headers',()=>{
   });
   const host=f.dom.center.firstChild;host.dispatch('click',{target:host.querySelector('[data-dsst-action="right"]')});assert.equal(right,1);assert.equal(wrong,0);f.ctx.dispose();
 });
+
+test('attention states pin to the left in pending, done, running order',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('a',{running:true});f.status.value.set('c',{pendingInteraction:{key:'q'}});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b']);
+  f.status.value.set('b',{completionUnread:true});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','b','a']);
+  const rows=plain(f.controller.snapshot().rows);
+  assert.deepEqual(rows.map(r=>[r.id,r.zone,r.pinned]),[['c','auto',false],['b','auto',false],['a','auto',false]]);
+  assert.equal(f.controller.guarded('c'),true);assert.equal(f.controller.guarded('b'),true);assert.equal(f.controller.guarded('a'),true);
+  f.controller.dispose();
+});
+test('manual pins lead the strip in pin order and return to their stored slot when unpinned',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.controller.pin('c');f.controller.pin('a');
+  assert.deepEqual(plain(f.controller.snapshot().pins),['c','a']);
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b']);
+  assert.equal(f.controller.snapshot().rows[0].zone,'pin');
+  f.controller.unpin('c');
+  assert.deepEqual(plain(f.controller.snapshot().order),['a','b','c']);
+  assert.equal(f.controller.togglePin('b'),true);assert.equal(f.controller.isPinned('b'),true);
+  f.controller.togglePin('b');assert.equal(f.controller.isPinned('b'),false);
+  f.controller.dispose();
+});
+test('closing a tab also drops its manual pin record',()=>{
+  const f=fixture();f.controller.pin('a');f.controller.close('a');
+  assert.deepEqual(plain(f.controller.snapshot().pins),[]);f.controller.dispose();
+});
+test('drag reordering stays inside its own zone',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  assert.equal(f.controller.moveTab('c','a',false),true);
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b']);
+  f.status.value.set('a',{running:true});f.status.emit();
+  assert.equal(f.controller.moveTab('c','a',true),false,'the attention group is status driven');
+  assert.equal(f.controller.moveTab('a','b',false),false);
+  f.controller.pin('b');
+  assert.equal(f.controller.moveTab('b','c',false),false,'pin and normal are different zones');
+  f.controller.pin('c');
+  assert.equal(f.controller.moveTab('c','b',false),true);
+  assert.deepEqual(plain(f.controller.snapshot().pins),['c','b']);
+  f.controller.dispose();
+});
+function pinnedFixture(pins){
+  const raw=JSON.stringify({version:1,ids:['a','b','c'],active:'a',pins:pins||[]});
+  return mounted(dom=>{dom.window.localStorage={getItem:key=>key==='dsh-session-tabs.v1'?raw:null,setItem(){}};});
+}
+test('manual pins and attention tabs render in the fixed zone, the rest in the scrolling list',()=>{
+  const f=pinnedFixture(['c']);
+  const host=f.dom.center.firstChild,pinned=host.querySelector('.dsst-pinned'),list=host.querySelector('.dsst-list');
+  const ids=container=>[...container.querySelectorAll('[data-dsst-tab]')].map(cell=>cell.getAttribute('data-dsst-tab'));
+  assert.deepEqual(ids(pinned),['c']);assert.deepEqual(ids(list),['a','b']);
+  assert.equal(pinned.querySelector('[data-dsst-tab="c"]').getAttribute('data-pinned'),'true');
+  assert.equal(pinned.querySelector('[data-dsst-tab="c"]').getAttribute('data-zone'),'pin');
+  assert.ok(list.querySelector('[data-dsst-tab="a"]').querySelector('.dsst-pin'),'every tab carries the pin slot');
+  f.status.value.set('b',{running:true});f.status.emit();f.dom.flush();
+  assert.deepEqual(ids(pinned),['c','b']);assert.deepEqual(ids(list),['a']);
+  assert.equal(pinned.querySelector('[data-dsst-tab="b"]').getAttribute('data-zone'),'auto');
+  f.ctx.dispose();
+});
+test('status marks are plain circles without glyph text, and the close button reserves width',()=>{
+  const f=mounted(),host=f.dom.center.firstChild,cell=host.querySelector('[data-dsst-tab]'),dot=cell.querySelector('.dsst-dot');
+  assert.equal(dot.textContent,'');assert.equal(cell.getAttribute('data-status'),'idle');
+  assert.match(f.plugin.CSS,/\.dsst-dot::before\{[^}]*border-radius:50%/);
+  assert.doesNotMatch(source,/running:'●'|pending:'!'|done:'✓'/);
+  assert.match(f.plugin.CSS,/\.dsst-close\{[^}]*visibility:hidden/);
+  assert.doesNotMatch(f.plugin.CSS,/data-active=false\] \.dsst-close\{display:none\}/);
+  assert.match(f.plugin.CSS,/\.dsst-tab\[data-active=true\] \.dsst-close,\.dsst-tab:is\(:hover,:focus-within\) \.dsst-close\{visibility:visible\}/);
+  assert.match(f.plugin.CSS,/\.dsst-pinned\{max-width:50%\}/);
+  f.ctx.dispose();
+});
+test('a click never turns into a drag, a real drag reorders live, and the close button never drags',()=>{
+  const f=pinnedFixture([]);
+  const host=f.dom.center.firstChild,api=f.window.__dshSessionTabs;
+  const cells=[...host.querySelectorAll('[data-dsst-tab]')];
+  cells.forEach((cell,index)=>cell.getBoundingClientRect=()=>({left:index*40,width:40,right:index*40+40,top:0,bottom:30,height:30}));
+  const b=host.querySelector('[data-dsst-tab="b"]'),c=host.querySelector('[data-dsst-tab="c"]'),bOpen=b.querySelector('[data-dsst-action="open"]');
+  const openCalls=()=>f.calls.filter(call=>call[0]==='open').length;
+  const before=openCalls();
+  f.dom.dispatch(bOpen,'pointerdown',{button:0,clientX:50,clientY:10});
+  f.dom.dispatch(bOpen,'pointermove',{clientX:58,clientY:11});
+  f.dom.dispatch(bOpen,'pointerup',{target:bOpen});
+  assert.deepEqual(plain(api.snapshot().order),['a','b','c'],'8px of pointer jitter is still a click');
+  assert.equal(b.hasAttribute('data-dsst-dragging'),false);
+  assert.equal(openCalls(),before+1,'the click opens the tab even without a native click event');
+  f.dom.dispatch(bOpen,'pointerdown',{button:0,clientX:50,clientY:10});
+  f.dom.dispatch(c,'pointermove',{clientX:112,clientY:10});
+  assert.equal(b.getAttribute('data-dsst-dragging'),'');
+  assert.deepEqual(plain(api.snapshot().order),['a','c','b'],'the strip reorders live while dragging');
+  assert.equal(host.getAttribute('data-dragging'),'');
+  f.dom.dispatch(c,'pointerup',{target:c});
+  assert.equal(b.hasAttribute('data-dsst-dragging'),false);
+  assert.equal(host.hasAttribute('data-dragging'),false);
+  assert.equal(host.hasAttribute('data-dropping'),false);
+  const opensBefore=f.calls.filter(call=>call[0]==='open').length;
+  f.dom.dispatch(host.querySelector('[data-dsst-tab="a"] [data-dsst-action="open"]'),'click',{});
+  assert.equal(f.calls.filter(call=>call[0]==='open').length,opensBefore,'the click that follows a drag is suppressed');
+  const close=c.querySelector('[data-dsst-action="close"]');
+  f.dom.dispatch(close,'pointerdown',{button:0,clientX:90,clientY:10});
+  f.dom.dispatch(aCellOf(host,'b'),'pointermove',{clientX:20,clientY:10});
+  f.dom.dispatch(close,'pointerup',{target:close});
+  assert.deepEqual(plain(api.snapshot().order),['a','c','b'],'close presses never drag');
+  f.ctx.dispose();
+});
+test('pointer jitter inside the pressed tab stays a click instead of starting a drag',()=>{
+  const f=pinnedFixture([]);
+  const host=f.dom.center.firstChild,api=f.window.__dshSessionTabs;
+  const cells=[...host.querySelectorAll('[data-dsst-tab]')];
+  cells.forEach((cell,index)=>cell.getBoundingClientRect=()=>({left:index*40,width:40,right:index*40+40,top:0,bottom:30,height:30}));
+  const b=host.querySelector('[data-dsst-tab="b"]'),bOpen=b.querySelector('[data-dsst-action="open"]');
+  const opens=()=>f.calls.filter(call=>call[0]==='open').length;
+  const before=opens();
+  f.dom.dispatch(bOpen,'pointerdown',{button:0,clientX:45,clientY:8});
+  f.dom.dispatch(b,'pointermove',{clientX:70,clientY:14});
+  assert.equal(b.hasAttribute('data-dsst-dragging'),false,'moving inside the same tab never lifts it');
+  assert.deepEqual(plain(api.snapshot().order),['a','b','c']);
+  f.dom.dispatch(b,'pointerup',{target:b});
+  assert.equal(opens(),before+1,'releasing inside the tab switches to it');
+  f.ctx.dispose();
+});
+test('a click still switches when is the capture element, not the tab, that receives the release',()=>{
+  const f=pinnedFixture([]);
+  const host=f.dom.center.firstChild,api=f.window.__dshSessionTabs;
+  const cells=[...host.querySelectorAll('[data-dsst-tab]')];
+  cells.forEach((cell,index)=>cell.getBoundingClientRect=()=>({left:index*40,width:40,right:index*40+40,top:0,bottom:30,height:30}));
+  const b=host.querySelector('[data-dsst-tab="b"]');
+  const opens=()=>f.calls.filter(call=>call[0]==='open').length;
+  const before=opens();
+  f.dom.dispatch(b.querySelector('[data-dsst-action="open"]'),'pointerdown',{button:0,clientX:50,clientY:10});
+  f.dom.dispatch(b,'pointerup',{target:host,clientX:52,clientY:10});
+  assert.equal(opens(),before+1,'the pressed tab opens even if the capture target gets the pointerup');
+  assert.equal(api.snapshot().active,'b');
+  f.ctx.dispose();
+});
+test('dragging across status groups is rejected instead of moving or switching',()=>{
+  const f=pinnedFixture([]);
+  const api=f.window.__dshSessionTabs,host=f.dom.center.firstChild;
+  const cells=[...host.querySelectorAll('[data-dsst-tab]')];
+  cells.forEach((cell,index)=>cell.getBoundingClientRect=()=>({left:index*40,width:40,right:index*40+40,top:0,bottom:30,height:30}));
+  const b=host.querySelector('[data-dsst-tab="b"]'),c=host.querySelector('[data-dsst-tab="c"]');
+  f.status.value.set('c',{running:true});f.status.emit();f.dom.flush();
+  const opens=()=>f.calls.filter(call=>call[0]==='open').length;
+  const before=opens();
+  f.dom.dispatch(b.querySelector('[data-dsst-action="open"]'),'pointerdown',{button:0,clientX:50,clientY:10});
+  f.dom.dispatch(c,'pointermove',{clientX:110,clientY:10});
+  assert.equal(host.getAttribute('data-dropping'),'reject','a guarded group refuses the drop');
+  assert.deepEqual(plain(api.snapshot().order),['c','a','b'],'no reorder across groups');
+  f.dom.dispatch(c,'pointerup',{target:c});
+  assert.equal(opens(),before,'a rejected drag must not switch sessions');
+  assert.equal(host.hasAttribute('data-dropping'),false);
+  f.ctx.dispose();
+});
+test('dragging the current tab hides its join for the duration only',()=>{
+  const f=pinnedFixture([]);
+  const host=f.dom.center.firstChild;
+  const cells=[...host.querySelectorAll('[data-dsst-tab]')];
+  cells.forEach((cell,index)=>cell.getBoundingClientRect=()=>({left:index*40,width:40,right:index*40+40,top:0,bottom:30,height:30}));
+  const a=host.querySelector('[data-dsst-tab="a"]'),b=host.querySelector('[data-dsst-tab="b"]');
+  f.dom.dispatch(a.querySelector('[data-dsst-action="open"]'),'pointerdown',{button:0,clientX:20,clientY:10});
+  f.dom.dispatch(b,'pointermove',{clientX:90,clientY:10});
+  assert.equal(host.getAttribute('data-dragging-active'),'');
+  f.dom.dispatch(b,'pointerup',{target:b});
+  assert.equal(host.hasAttribute('data-dragging-active'),false);
+  f.ctx.dispose();
+});
+test('each tab carries its workspace name above the title',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.workspaces.value={items:[{workspaceId:'w1',title:'dsh-plugins',sessionIds:['a']},{workspaceId:'w2',path:'/Users/me/projects/beta',sessionIds:['b']}],archivedSessionIds:[]};
+  f.workspaces.emit();
+  const rows=plain(f.controller.snapshot().rows);
+  assert.equal(rows.find(row=>row.id==='a').workspace,'dsh-plugins');
+  assert.equal(rows.find(row=>row.id==='b').workspace,'beta','falls back to the path basename');
+  assert.equal(rows.find(row=>row.id==='c').workspace,'');
+  f.controller.dispose();
+});
+test('the strip renders the workspace line in its own smaller row',()=>{
+  const f=pinnedFixture([]);
+  const host=f.dom.center.firstChild;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',title:'dsh-plugins',sessionIds:['a']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();f.dom.flush();
+  const cell=host.querySelector('[data-dsst-tab="a"]');
+  const labels=cell.querySelector('.dsst-labels');
+  assert.equal(cell.querySelector('.dsst-workspace').textContent,'dsh-plugins');
+  assert.equal(labels.querySelector('.dsst-title').textContent,'A');
+  assert.equal(labels.firstChild.className,'dsst-workspace','the workspace line comes first');
+  assert.equal(host.querySelector('[data-dsst-tab="b"] .dsst-workspace').textContent,'');
+  assert.match(f.plugin.CSS,/\.dsst-strip\{[^}]*height:46px/);
+  assert.match(f.plugin.CSS,/\.dsst-workspace\{[^}]*font-size:10px/);
+  f.ctx.dispose();
+});
+function aCellOf(host,id){return host.querySelector('[data-dsst-tab="'+id+'"]');}

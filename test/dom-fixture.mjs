@@ -57,10 +57,11 @@ export function domFixture(){
   return {extra,doc,window,left,right,center,main,native,timers,observers,flush,advance,dispatch,get time(){return time;}};
 }
 export class TestContext{
-  constructor(services,inject){this.cleanups=[];this.registrations=[];this.warnings=[];this.logger={warn:message=>this.warnings.push(message)};
+  constructor(services,inject){this.services=services;this.cleanups=[];this.registrations=[];this.warnings=[];this.logger={warn:message=>this.warnings.push(message)};
     services.slots={inject:(_name,cb)=>cb(),register:(meta,component)=>{const entry={meta,component};this.registrations.push(entry);return()=>this.registrations.splice(this.registrations.indexOf(entry),1);}};
     for(const [name,service] of Object.entries(services))Object.defineProperty(this,name,{get(){if(!inject.includes(name))throw Error('Undeclared injection '+name);return service;}});
   }
+  get(name){return this.services[name];}
   effect(fn){const cleanup=fn();this.cleanups.push(cleanup);return cleanup;}
   dispose(){this.cleanups.splice(0).forEach(fn=>fn?.());}
 }

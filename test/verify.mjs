@@ -503,6 +503,9 @@ test('status marks are plain circles without glyph text, and the close button re
   const f=mounted(),host=f.dom.center.firstChild,cell=host.querySelector('[data-dsst-tab]'),dot=cell.querySelector('.dsst-dot');
   assert.equal(dot.textContent,'');assert.equal(cell.getAttribute('data-status'),'idle');
   assert.match(f.plugin.CSS,/\.dsst-dot::before\{[^}]*border-radius:50%/);
+  assert.match(f.plugin.CSS,/\.dsst-dot\[data-status=running\]::before\{animation:dsst-running-pulse/);
+  assert.match(f.plugin.CSS,/@keyframes dsst-running-pulse\{0%,100%\{opacity:1\}50%\{opacity:\.3\}\}/);
+  assert.match(f.plugin.CSS,/@media \(prefers-reduced-motion:reduce\)\{\.dsst-dot\[data-status=running\]::before\{animation:none\}\}/);
   assert.doesNotMatch(source,/running:'●'|pending:'!'|done:'✓'/);
   assert.match(f.plugin.CSS,/\.dsst-close\{[^}]*visibility:hidden/);
   assert.doesNotMatch(f.plugin.CSS,/data-active=false\] \.dsst-close\{display:none\}/);

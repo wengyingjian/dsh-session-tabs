@@ -96,7 +96,7 @@ dsh plugin --profile desktop add github:wengyingjian/dsh-session-tabs
 ## Compatibility
 
 - Upstream 0.1.6 was validated against **DSH 0.2.0-rc.2**.
-- This fork was checked on **DSH 0.2.2-rc.1 (macOS desktop)**: 74 unit tests plus a real-UI smoke check (strip height, workspace row, pinned zone, context menu, drag and click).
+- This fork was checked on **DSH 0.2.2-rc.1 (macOS desktop)**: 76 unit tests plus a real-UI smoke check (strip height, workspace row, pinned zone, context menu, drag and click).
 - The client API is still evolving: re-run the acceptance checks after a host upgrade. The strip mounts on the stable `data-slot="main"`; host layout changes are the main compatibility risk.
 - Known third-party behaviour: in the DS Bot view an empty "New session" is pulled back to Main Bot by ds-bot's sentinel, unrelated to this plugin.
 - Upstream acceptance history for 0.1.6 and earlier stays in [docs/validation.md](docs/validation.md).

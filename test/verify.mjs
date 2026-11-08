@@ -714,8 +714,12 @@ test('blank sessions show no time and the english dictionary stays compact',()=>
   const zh=fixture({lang:'zh'});zh.list.value.byId.a.blank=true;zh.list.value.byId.a.updatedAt=Date.now()-5*60*1000;zh.list.emit();
   assert.equal(zh.controller.snapshot().rows.find(row=>row.id==='a').time,'','a session that never started has no time');
   zh.controller.dispose();
-  const en=fixture({lang:'en'});en.list.value.byId.a.updatedAt=Date.now()-5*60*1000;en.list.emit();
-  assert.equal(en.controller.snapshot().rows.find(row=>row.id==='a').time,'5min');
+  const en=fixture({lang:'en'});
+  const enLabel=ms=>{en.list.value.byId.a.updatedAt=Date.now()-ms;en.list.emit();return en.controller.snapshot().rows.find(row=>row.id==='a').time;};
+  assert.equal(enLabel(30*1000),'now');
+  assert.equal(enLabel(5*60*1000),'5min');
+  assert.equal(enLabel(2*24*60*60*1000),'2d');
+  assert.equal(enLabel(400*24*60*60*1000),'1y');
   en.controller.dispose();
 });
 
@@ -774,6 +778,29 @@ test('a settled tab lands first in the normal zone, behind tabs still waiting',(
   assert.deepEqual(plain(f.controller.snapshot().order),['b','c','a'],'running and pending lead the strip');
   f.status.value.set('c',{running:false});f.status.emit();
   assert.deepEqual(plain(f.controller.snapshot().order),['b','c','a'],'the waiting tab keeps its place to the left');
+  f.controller.dispose();
+});
+test('a manually pinned tab keeps its stored slot when its dot clears',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.controller.pin('c');
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b']);
+  f.status.value.set('c',{running:true,pendingInteraction:{key:'k-c'}});f.status.emit();
+  f.status.value.set('c',{running:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c'],'a pinned tab never joins the normal order');
+  f.controller.unpin('c');
+  assert.deepEqual(plain(f.controller.snapshot().order),['a','b','c'],'unpinning still returns it to its stored slot');
+  f.controller.dispose();
+});
+test('tabs whose dots clear in one update keep the order the user saw',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('a',{running:false,completionUnread:true});
+  f.status.value.set('b',{running:true,pendingInteraction:{key:'k-b'}});
+  f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['b','a','c'],'needs-answer leads completed-unread');
+  f.status.value.set('a',{running:false,completionUnread:false});
+  f.status.value.set('b',{running:false});
+  f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['b','a','c'],'both keep the order they were showing');
   f.controller.dispose();
 });
 test('tabs settling in the same update keep their visual order at the head',()=>{

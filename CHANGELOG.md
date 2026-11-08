@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Merge the pinned zone and the normal tab list into one continuous horizontal scroll: manual pins and attention tabs lead the same scrolling strip, so one swipe moves the whole bar instead of scrolling two separate regions. The separate pinned scroll container and its 50% width cap are gone; pinned tabs now scroll out of view with the rest.
+- Reveal a tab right after pinning or unpinning it, since it now moves to (or out of) a strip head that may sit outside the current scroll view.
+
 ## 0.1.6 — 2026-10-15
 
 - Fix a renderer-freezing MutationObserver feedback loop when a global page such as the plugin manager unmounts the chat view.

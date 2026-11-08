@@ -183,8 +183,10 @@ test('right-clicking a tab opens the host menu scoped to that tab without switch
     ['pin',null,'置顶'],['close-others',false,'关闭其他'],['close-left',true,'关闭左侧'],['close-right',false,'关闭右侧']]);
   assert.deepEqual(plain(registered.resolve({id:'b'}).map(a=>a.disabled)),[null,false,false,false]);
   const actions=registered.resolve({id:'a'});
+  let revealed=null;cell.scrollIntoView=()=>{revealed='a';};
   actions[0].run();
   assert.deepEqual(plain(f.window.__dshSessionTabs.snapshot().pins),['a']);
+  assert.equal(revealed,'a','pinning reveals the tab now sitting at the strip head');
   assert.equal(registered.resolve({id:'a'})[0].label,'取消置顶');
   assert.equal(registered.resolve({id:'a'})[1].label,'关闭其他');
   registered.resolve({id:'a'})[1].run();
@@ -486,17 +488,19 @@ function pinnedFixture(pins){
   const raw=JSON.stringify({version:1,ids:['a','b','c'],active:'a',pins:pins||[]});
   return mounted(dom=>{dom.window.localStorage={getItem:key=>key==='dsh-session-tabs.v1'?raw:null,setItem(){}};});
 }
-test('manual pins and attention tabs render in the fixed zone, the rest in the scrolling list',()=>{
+test('manual pins and attention tabs lead one continuous scrolling strip',()=>{
   const f=pinnedFixture(['c']);
-  const host=f.dom.center.firstChild,pinned=host.querySelector('.dsst-pinned'),list=host.querySelector('.dsst-list');
+  const host=f.dom.center.firstChild,list=host.querySelector('.dsst-list');
   const ids=container=>[...container.querySelectorAll('[data-dsst-tab]')].map(cell=>cell.getAttribute('data-dsst-tab'));
-  assert.deepEqual(ids(pinned),['c']);assert.deepEqual(ids(list),['a','b']);
-  assert.equal(pinned.querySelector('[data-dsst-tab="c"]').getAttribute('data-pinned'),'true');
-  assert.equal(pinned.querySelector('[data-dsst-tab="c"]').getAttribute('data-zone'),'pin');
+  assert.deepEqual(ids(host),['c','a','b'],'one container holds pinned and normal tabs in visual order');
+  assert.equal(host.querySelectorAll('[role="tablist"]').length,1,'the strip is a single tablist');
+  assert.equal(host.querySelector('.dsst-pinned'),null,'no separate pinned scroll container');
+  assert.equal(list.querySelector('[data-dsst-tab="c"]').getAttribute('data-pinned'),'true');
+  assert.equal(list.querySelector('[data-dsst-tab="c"]').getAttribute('data-zone'),'pin');
   assert.ok(list.querySelector('[data-dsst-tab="a"]').querySelector('.dsst-pin'),'every tab carries the pin slot');
   f.status.value.set('b',{running:true});f.status.emit();f.dom.flush();
-  assert.deepEqual(ids(pinned),['c','b']);assert.deepEqual(ids(list),['a']);
-  assert.equal(pinned.querySelector('[data-dsst-tab="b"]').getAttribute('data-zone'),'auto');
+  assert.deepEqual(ids(host),['c','b','a'],'attention tabs still lead the same strip');
+  assert.equal(list.querySelector('[data-dsst-tab="b"]').getAttribute('data-zone'),'auto');
   f.ctx.dispose();
 });
 test('status marks are plain circles without glyph text, and the close button reserves width',()=>{
@@ -506,11 +510,15 @@ test('status marks are plain circles without glyph text, and the close button re
   assert.match(f.plugin.CSS,/\.dsst-dot\[data-status=running\]::before\{animation:dsst-running-pulse/);
   assert.match(f.plugin.CSS,/@keyframes dsst-running-pulse\{0%,100%\{opacity:1\}50%\{opacity:\.3\}\}/);
   assert.match(f.plugin.CSS,/@media \(prefers-reduced-motion:reduce\)\{\.dsst-dot\[data-status=running\]::before\{animation:none\}\}/);
+  assert.match(f.plugin.CSS,/\.dsst-dot\[data-status=pending\]\{color:var\(--dsw-alias-state-warn-primary/);
   assert.doesNotMatch(source,/running:'●'|pending:'!'|done:'✓'/);
   assert.match(f.plugin.CSS,/\.dsst-close\{[^}]*visibility:hidden/);
   assert.doesNotMatch(f.plugin.CSS,/data-active=false\] \.dsst-close\{display:none\}/);
   assert.match(f.plugin.CSS,/\.dsst-tab\[data-active=true\] \.dsst-close,\.dsst-tab:is\(:hover,:focus-within\) \.dsst-close\{visibility:visible\}/);
-  assert.match(f.plugin.CSS,/\.dsst-pinned\{max-width:50%\}/);
+  assert.match(f.plugin.CSS,/\.dsst-list\{display:flex;flex:0 1 auto;min-width:0;gap:2px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none\}/);
+  assert.doesNotMatch(f.plugin.CSS,/\.dsst-pinned/);
+  assert.doesNotMatch(f.plugin.CSS,/max-width:50%/);
+  assert.doesNotMatch(source,/'dsst-pinned'/);
   f.ctx.dispose();
 });
 test('a click never turns into a drag, a real drag reorders live, and the close button never drags',()=>{

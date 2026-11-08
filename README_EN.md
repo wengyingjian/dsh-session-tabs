@@ -27,7 +27,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 
 - Status marks are **solid circles**: running blue, needs attention yellow, completed unread green, connecting grey; idle shows nothing.
 - Running / needs-attention / completed-unread tabs **pin to the far left** in the order **needs attention > completed unread > running**, keeping their original order inside one state.
-- The pinned area **does not scroll** with the normal tabs; it takes at most half of the strip and scrolls internally when it overflows.
+- The whole strip is **one continuous horizontal scroll**: pinned tabs lead the strip and slide with every other tab, with no separate pinned scroll region; switching sessions scrolls the current tab into view.
 - A status change unpins immediately and returns the tab to its stored position.
 - Right-click **Pin / Unpin** pins a tab manually: persisted, drag-sortable inside the manual pin group, and an idle pinned tab shows a pin glyph in the status slot.
 
@@ -63,7 +63,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 | Label rows | single title row | workspace line + title |
 | Size | 47/48px strip, 14px font, 78–210px tabs | 46px strip, 13px font, 60–168px tabs |
 | Status marks | `●` `!` `✓` `…` glyphs | solid circles (blue/yellow/green/grey) |
-| Pinning | none | automatic status pinning + manual pin, fixed zone |
+| Pinning | none | automatic status pinning + manual pin; pinned tabs lead one continuous strip |
 | Bulk close | closes everything | skips running/attention/unread/pinned tabs |
 | Close button | always on or on-hover (changes width) | 20px reserved, visibility-only on hover |
 | Dragging | native HTML5 drag (fires after a few pixels, eats clicks) | pointer drag, 12px threshold, live reorder |

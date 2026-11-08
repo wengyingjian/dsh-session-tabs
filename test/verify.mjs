@@ -634,7 +634,8 @@ test('the strip renders the workspace line in its own smaller row',()=>{
   const labels=cell.querySelector('.dsst-labels');
   assert.equal(cell.querySelector('.dsst-workspace').textContent,'dsh-plugins');
   assert.equal(labels.querySelector('.dsst-title').textContent,'A');
-  assert.equal(labels.firstChild.className,'dsst-workspace','the workspace line comes first');
+  assert.equal(labels.firstChild.className,'dsst-meta','the workspace line comes first');
+  assert.equal(labels.querySelector('.dsst-meta').firstChild.className,'dsst-workspace');
   assert.equal(host.querySelector('[data-dsst-tab="b"] .dsst-workspace').textContent,'');
   assert.match(f.plugin.CSS,/\.dsst-strip\{[^}]*height:46px/);
   assert.match(f.plugin.CSS,/\.dsst-workspace\{[^}]*font-size:10px/);
@@ -694,3 +695,91 @@ test('unrelated status changes stay quiet',()=>{
   f.ctx.dispose();
 });
 function aCellOf(host,id){return host.querySelector('[data-dsst-tab="'+id+'"]');}
+
+test('each tab carries the compact relative time the workspace list shows for its session',()=>{
+  const f=fixture({lang:'zh'});
+  const label=ms=>{f.list.value.byId.a.updatedAt=Date.now()-ms;f.list.emit();return plain(f.controller.snapshot().rows).find(row=>row.id==='a').time;};
+  assert.equal(label(30*1000),'刚刚');
+  assert.equal(label(5*60*1000),'5分钟');
+  assert.equal(label(3*60*60*1000),'3小时');
+  assert.equal(label(2*24*60*60*1000),'2天');
+  assert.equal(label(40*24*60*60*1000),'1个月');
+  assert.equal(label(400*24*60*60*1000),'1年');
+  assert.equal(label(0),'刚刚','a future timestamp never reads as negative');
+  delete f.list.value.byId.a.updatedAt;f.list.emit();
+  assert.equal(f.controller.snapshot().rows.find(row=>row.id==='a').time,'','no durable activity, no time');
+  f.controller.dispose();
+});
+test('blank sessions show no time and the english dictionary stays compact',()=>{
+  const zh=fixture({lang:'zh'});zh.list.value.byId.a.blank=true;zh.list.value.byId.a.updatedAt=Date.now()-5*60*1000;zh.list.emit();
+  assert.equal(zh.controller.snapshot().rows.find(row=>row.id==='a').time,'','a session that never started has no time');
+  zh.controller.dispose();
+  const en=fixture({lang:'en'});en.list.value.byId.a.updatedAt=Date.now()-5*60*1000;en.list.emit();
+  assert.equal(en.controller.snapshot().rows.find(row=>row.id==='a').time,'5min');
+  en.controller.dispose();
+});
+
+test('the time renders at the right of the workspace line without widening the tab',()=>{
+  const raw='{"version":1,"ids":["a","b","c"],"active":"a","pins":[]}';
+  const f=mounted(dom=>{dom.window.localStorage={getItem:key=>key==='dsh-session-tabs.v1'?raw:null,setItem(){}};});
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',title:'dsh-plugins',sessionIds:['a']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();
+  f.services.sessions.list.value.byId.a.updatedAt=Date.now()-5*60*1000;
+  f.services.sessions.list.value.byId.b.updatedAt=Date.now()-3*60*60*1000;
+  f.services.sessions.list.emit();f.dom.flush();
+  const host=f.dom.center.firstChild,a=aCellOf(host,'a'),b=aCellOf(host,'b'),c=aCellOf(host,'c');
+  const meta=a.querySelector('.dsst-meta');
+  assert.equal(a.querySelector('.dsst-labels').firstChild,meta,'the time sits on the label row, above the title');
+  assert.equal(meta.firstChild.className,'dsst-workspace','the workspace name stays leftmost');
+  assert.equal(meta.querySelector('.dsst-time').textContent,'5分钟');
+  assert.equal(a.querySelector('[data-dsst-action="open"]').getAttribute('aria-label'),'A — 空闲 · 5分钟','the time also reaches the accessible name');
+  assert.equal(b.querySelector('.dsst-time').textContent,'3小时');
+  assert.equal(b.querySelector('.dsst-meta').hidden,false,'a time without a workspace still shows the row');
+  assert.equal(b.querySelector('.dsst-workspace').textContent,'');
+  assert.equal(c.querySelector('.dsst-meta').hidden,true,'no workspace and no time leaves the row out entirely');
+  assert.match(f.plugin.CSS,/\.dsst-tab\{[^}]*max-width:168px/,'the tab width cap does not grow for the time');
+  assert.match(f.plugin.CSS,/\.dsst-labels\{[^}]*max-width:108px/,'the label block keeps its width cap');
+  assert.match(f.plugin.CSS,/\.dsst-workspace\{[^}]*min-width:0[^}]*text-overflow:ellipsis/,'a long workspace name ends with an ellipsis');
+  assert.match(f.plugin.CSS,/\.dsst-time\{[^}]*flex:0 0 auto[^}]*\}[\s\S]*\.dsst-time:empty\{display:none\}/,'the time keeps its width while the workspace shrinks');
+  f.ctx.dispose();
+});
+
+test('a tab that loses its status dot moves to the head of the normal zone',async ()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c']);
+  f.status.value.set('c',{running:true,pendingInteraction:{key:'approve-c'}});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b'],'a pending tab leads the strip');
+  f.status.value.set('c',{running:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['c','a','b'],'answering rewrites the stored order');
+  assert.deepEqual(plain(f.controller.snapshot().order),['c','a','b']);
+  assert.equal(f.controller.snapshot().rows.find(row=>row.id==='c').zone,'normal');
+  await new Promise(resolve=>setTimeout(resolve,70));
+  assert.deepEqual(plain(JSON.parse(f.values.get('dsh-session-tabs.v1')).ids),['c','a','b'],'the settled order survives a reload');
+  f.controller.dispose();
+});
+test('a tab keeps its slot until every status dot is gone',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('c',{running:true,pendingInteraction:{key:'k-c'}});f.status.emit();
+  f.status.value.set('c',{running:true});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c'],'yellow to blue is not settling');
+  f.status.value.set('c',{running:false,completionUnread:true});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c'],'unread completion still holds the dot');
+  f.status.value.set('c',{running:false,completionUnread:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['c','a','b'],'losing the dot settles the tab');
+  f.controller.dispose();
+});
+test('a settled tab lands first in the normal zone, behind tabs still waiting',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('b',{running:true,pendingInteraction:{key:'k-b'}});f.status.value.set('c',{running:true});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['b','c','a'],'running and pending lead the strip');
+  f.status.value.set('c',{running:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().order),['b','c','a'],'the waiting tab keeps its place to the left');
+  f.controller.dispose();
+});
+test('tabs settling in the same update keep their visual order at the head',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('a',{running:true});f.status.value.set('c',{running:true});f.status.emit();
+  f.status.value.set('a',{running:false});f.status.value.set('c',{running:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','c','b']);
+  f.controller.dispose();
+});

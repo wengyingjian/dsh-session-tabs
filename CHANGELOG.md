@@ -4,6 +4,8 @@
 
 - Merge the pinned zone and the normal tab list into one continuous horizontal scroll: manual pins and attention tabs lead the same scrolling strip, so one swipe moves the whole bar instead of scrolling two separate regions. The separate pinned scroll container and its 50% width cap are gone; pinned tabs now scroll out of view with the rest.
 - Reveal a tab right after pinning or unpinning it, since it now moves to (or out of) a strip head that may sit outside the current scroll view.
+- Show the session's last user activity on the tab's workspace line, using the workspace list's own field (`updatedAt`, i.e. the last prompt — never an agent reply) and its compact relative wording (now / 5min / 3h / 2d / 3mo / 1y); blank sessions show nothing, and the tab width caps stay at 168px/108px, so a long workspace name is ellipsized first.
+- Settle a tab at the head of the normal zone once its status dot disappears (answered, read, or finished running); it never moves while yellow, blue or green is still lit, and tabs still waiting on the user keep their place to its left.
 
 ## 0.1.6 — 2026-10-15
 

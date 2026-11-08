@@ -17,7 +17,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 
 ### Tab strip
 
-- **Two-row labels**: a 10px tertiary line on top with the session's **workspace** (workspace title, falling back to the path's last segment; the line is hidden when the session has no workspace), a 13px session title below; both left-aligned and ellipsized.
+- **Two-row labels**: a 10px tertiary line on top, with the session's **workspace** on the left (workspace title, falling back to the path's last segment) and the session's **time** at its right end (the same field and compact relative wording the DSH workspace list uses: now / 5min / 3h / 2d); when the session has neither, the line is hidden and the title centres. A 13px session title sits below; both lines are left-aligned and ellipsized.
 - **Compact**: 46px strip, 40px tabs, 60–168px tab width, 108px label column, 13px title.
 - The active tab shares the content surface and joins it with reverse corners; other tabs sit on a darker strip. Light and dark themes follow DSH.
 - `＋` follows the tabs and uses native session creation. The right end of the row holds proxies for the bottom workbench and the right sidebar, reusing the native icons, state and click handlers.
@@ -28,7 +28,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 - Status marks are **solid circles**: running blue, needs attention yellow, completed unread green, connecting grey; idle shows nothing.
 - Running / needs-attention / completed-unread tabs **pin to the far left** in the order **needs attention > completed unread > running**, keeping their original order inside one state.
 - The whole strip is **one continuous horizontal scroll**: pinned tabs lead the strip and slide with every other tab, with no separate pinned scroll region; switching sessions scrolls the current tab into view.
-- A status change unpins immediately and returns the tab to its stored position.
+- **When the status dot goes away (the tab turns idle) it lands at the head of the normal zone**: tabs still waiting on you or running keep their place to its left, and nothing moves while a dot is still lit. The yellow dot only clears once you answer; the green one only once you read.
 - Right-click **Pin / Unpin** pins a tab manually: persisted, drag-sortable inside the manual pin group, and an idle pinned tab shows a pin glyph in the status slot.
 
 ### System notifications
@@ -60,7 +60,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 
 | | Upstream 0.1.6 | This fork |
 | --- | --- | --- |
-| Label rows | single title row | workspace line + title |
+| Label rows | single title row | workspace line + time / title |
 | Size | 47/48px strip, 14px font, 78–210px tabs | 46px strip, 13px font, 60–168px tabs |
 | Status marks | `●` `!` `✓` `…` glyphs | solid circles (blue/yellow/green/grey) |
 | Pinning | none | automatic status pinning + manual pin; pinned tabs lead one continuous strip |
@@ -96,7 +96,7 @@ dsh plugin --profile desktop add github:wengyingjian/dsh-session-tabs
 ## Compatibility
 
 - Upstream 0.1.6 was validated against **DSH 0.2.0-rc.2**.
-- This fork was checked on **DSH 0.2.2-rc.1 (macOS desktop)**: 62 unit tests plus a real-UI smoke check (strip height, workspace row, pinned zone, context menu, drag and click).
+- This fork was checked on **DSH 0.2.2-rc.1 (macOS desktop)**: 73 unit tests plus a real-UI smoke check (strip height, workspace row, pinned zone, context menu, drag and click).
 - The client API is still evolving: re-run the acceptance checks after a host upgrade. The strip mounts on the stable `data-slot="main"`; host layout changes are the main compatibility risk.
 - Known third-party behaviour: in the DS Bot view an empty "New session" is pulled back to Main Bot by ds-bot's sentinel, unrelated to this plugin.
 - Upstream acceptance history for 0.1.6 and earlier stays in [docs/validation.md](docs/validation.md).

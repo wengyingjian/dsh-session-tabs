@@ -783,3 +783,15 @@ test('tabs settling in the same update keep their visual order at the head',()=>
   assert.deepEqual(plain(f.controller.snapshot().ids),['a','c','b']);
   f.controller.dispose();
 });
+
+test('a manual drag after settling is not undone by later updates',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.status.value.set('c',{running:true});f.status.emit();
+  f.status.value.set('c',{running:false});f.status.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['c','a','b'],'the settled tab reached the head');
+  assert.equal(f.controller.moveTab('b','c',false),true,'the normal zone stays drag-sortable');
+  assert.deepEqual(plain(f.controller.snapshot().ids),['b','c','a']);
+  f.workspaces.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['b','c','a'],'an idle tab is never moved twice');
+  f.controller.dispose();
+});

@@ -21,7 +21,7 @@ Version 0.1.5 targets DSH 0.2.0-rc.2. Windows results below were supplied by the
 
 ## Automated checks
 
-The tests load the actual `lib/client.js` factory with a minimal DOM fixture. They cover loader metadata, lifecycle cleanup, native navigation, draft ownership, closed busy-session retention, storage parsing, cross-window focus, native-view fallback, DOM reuse, panel delegation, hidden retained session headers and delayed native-opener handoffs. Run:
+The tests load the actual `lib/client.js` factory with a minimal DOM fixture. They cover loader metadata, lifecycle cleanup, native navigation, draft ownership, closed busy-session retention, storage parsing, cross-window focus, native-view fallback, DOM reuse, panel delegation, hidden retained session headers, delayed native-opener handoffs, the tab time buckets (both languages, blank sessions, the unchanged width caps) and the settled-order rewrite (dot loss only, pinned tabs untouched, same-tick order preserved, order persisted). Run:
 
 ```sh
 node --test test/verify.mjs

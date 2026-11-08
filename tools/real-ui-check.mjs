@@ -312,7 +312,16 @@ async function main() {
   checks.push(['document.querySelectorAll("iframe").length===0','没有 iframe']);
   checks.push(['document.querySelectorAll("[data-slot=main]").length===1','只有一个原生主视图入口']);
   if(BASELINE){checks.push(['document.querySelectorAll("[data-dsh-session-tabs]").length===0','原生对照：标签插件未加载']);}
-  else{checks.push(['document.querySelectorAll("[data-dsh-session-tabs]").length===1','只有一条标签栏']);checks.push(['!!document.querySelector("style[data-plugin-css=\\"dsh-session-tabs/style\\"]")','标签栏样式已注入']);}
+  else{
+    checks.push(['document.querySelectorAll("[data-dsh-session-tabs]").length===1','只有一条标签栏']);
+    checks.push(['!!document.querySelector("style[data-plugin-css=\\"dsh-session-tabs/style\\"]")','标签栏样式已注入']);
+    // The pieces a mock DOM cannot check: real layout under the real host styles.
+    checks.push(['[...document.querySelectorAll(".dsst-tab")].every(t=>t.getBoundingClientRect().width<=168.5)','标签宽度没有超过 168px 上限']);
+    checks.push(['[...document.querySelectorAll(".dsst-labels")].every(l=>l.getBoundingClientRect().width<=108.5)','文字列宽度没有超过 108px 上限']);
+    checks.push(['[...document.querySelectorAll(".dsst-time")].every(e=>!e.textContent||/^(刚刚|\\d+(分钟|小时|天|个月|年)|now|\\d+(min|h|d|mo|y))$/.test(e.textContent))','标签时间文案与 DSH 列表一致']);
+    checks.push(['[...document.querySelectorAll(".dsst-time")].every(e=>{const r=e.getBoundingClientRect(),l=e.closest(".dsst-labels").getBoundingClientRect(),t=e.closest("[data-dsst-tab]").getBoundingClientRect();return !e.textContent||(r.width>0&&r.right<=l.right+.5&&r.right<=t.right+.5);})','时间贴着上边一行右端且没被工作区名挤掉']);
+    checks.push(['[...document.querySelectorAll(".dsst-meta")].every(m=>m.hidden===!(m.querySelector(".dsst-workspace").textContent||m.querySelector(".dsst-time").textContent))','没有工作区也没有时间时整行隐藏']);
+  }
   ASSERTIONS.forEach((expr, i) => checks.push([expr, LABELS[i] || `自定义断言 #${i + 1}`]));
 
   for (const [expr, label] of checks) {

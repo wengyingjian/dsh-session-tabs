@@ -811,6 +811,14 @@ test('tabs settling in the same update keep their visual order at the head',()=>
   f.controller.dispose();
 });
 
+test('fresh activity never reorders the strip on its own',()=>{
+  const f=fixture();f.controller.open('b');f.controller.open('c');
+  f.list.value.byId.a.updatedAt=Date.now()-60*60*1000;
+  f.list.value.byId.c.updatedAt=Date.now()-1000;
+  f.list.emit();
+  assert.deepEqual(plain(f.controller.snapshot().ids),['a','b','c'],'the time is display-only, never a sort key');
+  f.controller.dispose();
+});
 test('a manual drag after settling is not undone by later updates',()=>{
   const f=fixture();f.controller.open('b');f.controller.open('c');
   f.status.value.set('c',{running:true});f.status.emit();

@@ -96,7 +96,7 @@ dsh plugin --profile desktop add github:wengyingjian/dsh-session-tabs
 ## 兼容性
 
 - 上游基线在 **DSH 0.2.0-rc.2** 上验证。
-- 本 fork 实测环境：**DSH 0.2.2-rc.1（macOS Desktop）**，76 项单测 + 真实 GUI 冒烟（条高、两行工作区、置顶区、右键菜单、拖拽与点击）。
+- 本 fork 实测环境：**DSH 0.2.2-rc.1（macOS Desktop）**，77 项单测 + 真实 GUI 冒烟（条高、两行工作区、置顶区、右键菜单、拖拽与点击）。
 - DSH 客户端 API 仍在演化，升级宿主后需重新验收；中心挂载点使用稳定的 `data-slot="main"`，宿主结构调整是主要兼容性风险。
 - 已知第三方行为：DS Bot 视图里打开空白「新会话」会被 ds-bot 的守夜逻辑拉回 Main Bot，与本插件无关。
 - 上游 0.1.6 及更早的验收记录保留在 [docs/validation.md](docs/validation.md)。

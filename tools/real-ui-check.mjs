@@ -275,6 +275,21 @@ async function main() {
     await evaluate('window.__dshSessionTabs.enable(true)');
     ensure(await evaluate('(()=>{const n=window.__tabsUiNodes;return !!n.left&&!!n.right&&!!n.main&&n.left===document.querySelector("[data-slot=sidebar]")&&n.right===document.querySelector("[data-slot=rightbar]")&&n.main===document.querySelector("[data-slot=main]");})()'),'左右侧栏及主视图节点保留');
     await evaluate('delete window.__tabsUiNodes');
+    proof.locate={};
+    ensure(await evaluate('(()=>{const b=document.querySelector("[data-dsst-locate]");if(!b)return false;const slot=b.nextElementSibling;return !!slot&&slot.hasAttribute("data-dsst-locate-slot")&&!!slot.querySelector("button[aria-expanded]");})()'),'定位按钮紧挨在工作区搜索框左边');
+    proof.locate.geometry=await evaluate('(()=>{const b=document.querySelector("[data-dsst-locate]");if(!b)return null;const r=b.getBoundingClientRect(),s=b.nextElementSibling.getBoundingClientRect();return {width:r.width,height:r.height,gap:s.left-r.right};})()');
+    ensure(proof.locate.geometry&&Math.abs(proof.locate.geometry.width-28)<.6&&Math.abs(proof.locate.geometry.height-28)<.6&&proof.locate.geometry.gap<8,'定位按钮与原生搜索按钮同尺寸且相邻');
+    const locateTarget=await evaluate('window.__dshSessionTabs.snapshot().active');
+    await evaluate('document.querySelector("[data-dsst-locate]").click()');
+    await sleep(600);
+    ensure(await evaluate(`(()=>{const row=[...document.querySelectorAll("[data-row-key]")].find(e=>e.getAttribute("data-row-key")==="session:"+${JSON.stringify(locateTarget)});return !!row&&row.hasAttribute("data-dsst-reveal");})()`),'点击定位按钮后当前会话行在左栏被高亮');
+    ensure(await evaluate('(()=>{const row=document.querySelector("[data-dsst-reveal]");if(!row)return false;const r=row.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight+1;})()'),'高亮的会话行已滚动进可视区');
+    await evaluate(`(()=>{const row=[...document.querySelectorAll("nav button")].find(b=>b.textContent.trim()==='插件');if(row)row.click();return true;})()`);
+    await sleep(400);
+    ensure(await evaluate('!!document.querySelector("[data-global-panel]")'),'点击插件进入全局面板视图');
+    await evaluate('document.querySelector("[data-dsst-locate]").click()');
+    await sleep(500);
+    ensure(await evaluate('!document.querySelector("[data-global-panel]")'),'定位按钮从全局面板直接回到会话');
     await cdp.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:900,y:500});
     writeFileSync(OUT.replace(/\.png$/, '.json'),JSON.stringify(proof,null,2)+'\n');
   }

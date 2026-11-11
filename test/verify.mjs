@@ -830,3 +830,170 @@ test('a manual drag after settling is not undone by later updates',()=>{
   assert.deepEqual(plain(f.controller.snapshot().ids),['b','c','a'],'an idle tab is never moved twice');
   f.controller.dispose();
 });
+
+// —— sidebar locate button ——
+function sidebarDom(dom){
+  const scrolled=[],clicks={};
+  const header=dom.doc.createElement('div');
+  const slot=dom.doc.createElement('div');
+  const box=dom.doc.createElement('div');
+  const searchButton=dom.doc.createElement('button');searchButton.setAttribute('aria-expanded','false');
+  const input=dom.doc.createElement('input');input.setAttribute('type','text');
+  box.append(searchButton,input);slot.append(box);header.append(slot);
+  const list=dom.doc.createElement('div');dom.left.append(header,list);
+  function sessionRow(id){const row=dom.doc.createElement('div');row.setAttribute('data-row-key','session:'+id);row.scrollIntoView=()=>scrolled.push(id);return row;}
+  function makeGroup({id,visible=[],hidden=[],expanded=false}){
+    const section=dom.doc.createElement('div');
+    const row=dom.doc.createElement('div');row.setAttribute('data-row-key','workspace:'+id);
+    section.append(row);list.append(section);
+    let open=expanded;row.setAttribute('aria-expanded',open?'true':'false');
+    clicks[id]=0;
+    const hiddenRows=[];
+    function render(openNow){
+      section.replaceChildren(row);if(!openNow)return;
+      for(const s of visible)section.append(sessionRow(s));
+      if(hidden.length){
+        const more=dom.doc.createElement('button');more.setAttribute('data-row-key','overflow:'+id);more.setAttribute('aria-expanded','false');
+        more.addEventListener('click',()=>{const next=hiddenRows.shift();if(next)section.append(next);if(!hiddenRows.length)more.setAttribute('aria-expanded','true');});
+        for(const s of hidden)hiddenRows.push(sessionRow(s));
+        section.append(more);
+      }
+    }
+    row.addEventListener('click',()=>{clicks[id]++;open=!open;row.setAttribute('aria-expanded',open?'true':'false');render(open);});
+    render(open);
+    return row;
+  }
+  return {header,slot,searchButton,input,list,scrolled,clicks,makeGroup,
+    locate:()=>dom.doc.querySelector('[data-dsst-locate]'),
+    row:id=>[...dom.doc.querySelectorAll('[data-row-key]')].find(el=>el.getAttribute('data-row-key')==='session:'+id)};
+}
+function locateMounted(setup,opts){
+  return mounted(dom=>{dom.locate=sidebarDom(dom);setup?.(dom);},opts);
+}
+test('the locate button sits left of the workspace search slot and stays a singleton',()=>{
+  const f=mounted(dom=>{dom.locate=sidebarDom(dom);});
+  const dom=f.dom,button=dom.locate.locate();
+  assert.ok(button,'the button is injected');
+  assert.equal(button.nextSibling,dom.locate.slot,'immediately left of the search slot');
+  assert.equal(dom.locate.slot.hasAttribute('data-dsst-locate-slot'),true,'the search slot is marked to drop its auto margin');
+  assert.equal(button.getAttribute('aria-label'),'定位当前会话');
+  assert.equal(dom.doc.querySelectorAll('[data-dsst-locate]').length,1);
+  dom.observers[0].fn([{type:'childList',target:dom.left,addedNodes:[dom.locate.header]}]);dom.flush();
+  assert.equal(dom.doc.querySelectorAll('[data-dsst-locate]').length,1,'observer rounds never duplicate it');
+  assert.equal(button.nextSibling,dom.locate.slot);
+  assert.match(f.plugin.CSS,/\.dsst-locate\{[^}]*margin-left:auto/);
+  assert.match(f.plugin.CSS,/\.dsst-locate\{[^}]*background:0 0;?[^}]*border:none/,'默认融入背景，不带原生按钮底色');
+  assert.match(f.plugin.CSS,/\.dsst-locate:hover\{background:var\(--dsw-alias-interactive-bg-hover\)\}/,'hover 才出现底色');
+  assert.match(f.plugin.CSS,/\[data-dsst-locate-slot\]\{margin-left:0!important\}/);
+  assert.match(f.plugin.CSS,/\[data-dsst-reveal\]\{animation:dsst-reveal 1\.6s ease-out 1!important\}/);
+  assert.match(f.plugin.CSS,/@media \(prefers-reduced-motion:reduce\)\{\[data-dsst-reveal\]\{animation:none\}\}/);
+  f.ctx.dispose();
+});
+test('the locate label follows the interface language',()=>{
+  const f=mounted(dom=>{dom.doc.documentElement.lang='en';dom.locate=sidebarDom(dom);});
+  assert.equal(f.dom.locate.locate().getAttribute('aria-label'),'Reveal current session');
+  f.ctx.dispose();
+});
+test('locating expands the owning workspace group, then scrolls and flashes the row',()=>{
+  const f=locateMounted();
+  const dom=f.dom;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a','b']}],archivedSessionIds:[]};
+  dom.locate.makeGroup({id:'w1',visible:['a','b'],expanded:false});
+  f.services.workspaces.list.emit();dom.flush();
+  const group=dom.locate.list.querySelector('[data-row-key="workspace:w1"]');
+  assert.equal(group.getAttribute('aria-expanded'),'false');
+  dom.locate.locate().click();
+  assert.equal(group.getAttribute('aria-expanded'),'true','the owning group expanded');
+  assert.equal(dom.locate.clicks.w1,1,'exactly one expansion click');
+  dom.advance(120);
+  const row=dom.locate.row('a');
+  assert.ok(row,'the session row rendered after the expansion');
+  assert.equal(row.hasAttribute('data-dsst-reveal'),true);
+  assert.deepEqual(dom.locate.scrolled,['a']);
+  dom.advance(1700);
+  assert.equal(row.hasAttribute('data-dsst-reveal'),false,'the flash clears itself');
+  assert.equal(dom.timers.size,0);
+  f.ctx.dispose();
+});
+test('a row already in the tree flashes in place without touching the groups',()=>{
+  const f=locateMounted(dom=>{dom.locate.makeGroup({id:'w1',visible:['a','b'],expanded:true});});
+  const dom=f.dom;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a','b']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();dom.flush();
+  dom.locate.locate().click();
+  const row=dom.locate.row('a');
+  assert.equal(row.hasAttribute('data-dsst-reveal'),true);
+  assert.deepEqual(dom.locate.scrolled,['a']);
+  assert.equal(dom.locate.clicks.w1,0,'no group was toggled');
+  dom.flush();
+  assert.equal(dom.timers.size,0);
+  f.ctx.dispose();
+});
+test('locating walks the show-more overflow until the hidden row appears',()=>{
+  const f=locateMounted(dom=>{dom.locate.makeGroup({id:'w1',visible:[],hidden:['b','a'],expanded:true});});
+  const dom=f.dom;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a','b']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();dom.flush();
+  dom.locate.locate().click();
+  assert.equal(dom.locate.row('a'),undefined,'the row is still hidden behind the overflow');
+  dom.advance(240);
+  const row=dom.locate.row('a');
+  assert.ok(row,'the overflow revealed it');
+  assert.equal(row.hasAttribute('data-dsst-reveal'),true);
+  assert.deepEqual(dom.locate.scrolled,['a']);
+  f.ctx.dispose();
+});
+test('locating from a global panel reopens the last viewed session without touching the tree',()=>{
+  const f=locateMounted(dom=>{dom.locate.makeGroup({id:'w1',visible:['a'],expanded:false});});
+  const dom=f.dom;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();dom.flush();
+  f.panel.value.activePanelId='plugins';f.panel.emit();
+  const before=f.calls.length;
+  dom.locate.locate().click();
+  assert.ok(f.calls.slice(before).some(call=>call[0]==='open'&&call[1]==='a'),'the last viewed session is opened');
+  assert.equal(dom.locate.clicks.w1,0,'no tree reveal while a panel is open');
+  assert.equal(dom.timers.size,0);
+  f.panel.value.activePanelId=null;f.panel.emit();
+  f.ctx.dispose();
+});
+test('without the workspace search box no locate button is injected and locating stays quiet',()=>{
+  const f=mounted();
+  assert.equal(f.dom.doc.querySelector('[data-dsst-locate]'),null);
+  f.window.__dshSessionTabs.locate();
+  f.dom.flush();
+  assert.equal(f.dom.doc.querySelector('[data-dsst-locate]'),null);
+  f.ctx.dispose();
+});
+test('dispose removes the locate button, the slot mark and any flash attribute',()=>{
+  const f=locateMounted(dom=>{dom.locate.makeGroup({id:'w1',visible:['a'],expanded:true});});
+  const dom=f.dom;
+  f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a']}],archivedSessionIds:[]};
+  f.services.workspaces.list.emit();dom.flush();
+  const row=dom.locate.row('a');
+  f.window.__dshSessionTabs.locate();
+  assert.equal(row.hasAttribute('data-dsst-reveal'),true);
+  f.ctx.dispose();
+  assert.equal(dom.doc.querySelector('[data-dsst-locate]'),null);
+  assert.equal(dom.locate.slot.hasAttribute('data-dsst-locate-slot'),false);
+  assert.equal(row.hasAttribute('data-dsst-reveal'),false);
+  assert.equal(dom.timers.size,0);
+});
+test('locate() reveals the current session, opens it from a panel and declines bad targets',()=>{
+  const f=fixture();
+  assert.deepEqual(plain(f.controller.locate()),{action:'reveal',id:'a'});
+  f.panel.value.activePanelId='plugins';f.panel.emit();
+  assert.deepEqual(plain(f.controller.locate()),{action:'open',id:'a'});
+  f.panel.value.activePanelId=null;f.panel.emit();
+  f.workspaces.value={items:[{workspaceId:'w1',sessionIds:['a']}],archivedSessionIds:[]};f.workspaces.emit();
+  assert.equal(f.controller.workspaceOf('a'),'w1');
+  assert.equal(f.controller.workspaceOf('c'),'');
+  f.workspaces.value={items:[],archivedSessionIds:['a']};f.workspaces.emit();
+  assert.equal(f.controller.locate(),null,'an archived current session is not a target');
+  f.controller.dispose();
+  const f2=fixture();f2.controller.dispose();
+  f2.list.value.ids=[];f2.list.value.byId={};f2.list.emit();
+  const again=f2.plugin.createController(f2.ctx,{storage:{getItem:()=>null,setItem(){}},lang:()=>'en'});
+  assert.equal(again.locate(),null,'no sessions at all, no target');
+  again.dispose();
+});

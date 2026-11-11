@@ -943,7 +943,7 @@ test('locating walks the show-more overflow until the hidden row appears',()=>{
   assert.deepEqual(dom.locate.scrolled,['a']);
   f.ctx.dispose();
 });
-test('locating from a global panel reopens the last viewed session without touching the tree',()=>{
+test('locating from a global panel reopens the session and reveals it in the tree too',()=>{
   const f=locateMounted(dom=>{dom.locate.makeGroup({id:'w1',visible:['a'],expanded:false});});
   const dom=f.dom;
   f.services.workspaces.list.value={items:[{workspaceId:'w1',sessionIds:['a']}],archivedSessionIds:[]};
@@ -952,8 +952,10 @@ test('locating from a global panel reopens the last viewed session without touch
   const before=f.calls.length;
   dom.locate.locate().click();
   assert.ok(f.calls.slice(before).some(call=>call[0]==='open'&&call[1]==='a'),'the last viewed session is opened');
-  assert.equal(dom.locate.clicks.w1,0,'no tree reveal while a panel is open');
-  assert.equal(dom.timers.size,0);
+  assert.equal(dom.locate.clicks.w1,1,'the owning group expands as well');
+  dom.advance(120);
+  const row=dom.locate.row('a');
+  assert.ok(row);assert.equal(row.hasAttribute('data-dsst-reveal'),true,'and the row flashes');
   f.panel.value.activePanelId=null;f.panel.emit();
   f.ctx.dispose();
 });
@@ -979,11 +981,11 @@ test('dispose removes the locate button, the slot mark and any flash attribute',
   assert.equal(row.hasAttribute('data-dsst-reveal'),false);
   assert.equal(dom.timers.size,0);
 });
-test('locate() reveals the current session, opens it from a panel and declines bad targets',()=>{
+test('locate() returns the reveal target, opens it from a panel and declines bad targets',()=>{
   const f=fixture();
-  assert.deepEqual(plain(f.controller.locate()),{action:'reveal',id:'a'});
+  assert.equal(f.controller.locate(),'a');
   f.panel.value.activePanelId='plugins';f.panel.emit();
-  assert.deepEqual(plain(f.controller.locate()),{action:'open',id:'a'});
+  assert.equal(f.controller.locate(),'a');
   f.panel.value.activePanelId=null;f.panel.emit();
   f.workspaces.value={items:[{workspaceId:'w1',sessionIds:['a']}],archivedSessionIds:[]};f.workspaces.emit();
   assert.equal(f.controller.workspaceOf('a'),'w1');

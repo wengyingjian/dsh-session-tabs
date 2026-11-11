@@ -287,9 +287,11 @@ async function main() {
     await evaluate(`(()=>{const row=[...document.querySelectorAll("nav button")].find(b=>b.textContent.trim()==='插件');if(row)row.click();return true;})()`);
     await sleep(400);
     ensure(await evaluate('!!document.querySelector("[data-global-panel]")'),'点击插件进入全局面板视图');
-    await evaluate('document.querySelector("[data-dsst-locate]").click()');
+    await evaluate('(()=>{window.__dsstLocateTarget=window.__dshSessionTabs.snapshot().active;document.querySelector("[data-dsst-locate]").click();return true;})()');
     await sleep(500);
     ensure(await evaluate('!document.querySelector("[data-global-panel]")'),'定位按钮从全局面板直接回到会话');
+    ensure(await evaluate('(async()=>{const id=window.__dsstLocateTarget;const until=Date.now()+1500;for(;;){const row=[...document.querySelectorAll("[data-row-key]")].find(e=>e.getAttribute("data-row-key")==="session:"+id);if(row&&row.hasAttribute("data-dsst-reveal"))return true;if(Date.now()>until)return false;await new Promise(r=>setTimeout(r,100));}})()'),'回到会话的同时左栏也展开并高亮该会话');
+    await evaluate('delete window.__dsstLocateTarget');
     await cdp.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:900,y:500});
     writeFileSync(OUT.replace(/\.png$/, '.json'),JSON.stringify(proof,null,2)+'\n');
   }

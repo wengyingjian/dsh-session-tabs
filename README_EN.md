@@ -44,7 +44,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 
 - A locate button sits **left of the search box** in the workspace list header (anchored to the native search field language-independently, no host class names touched).
 - While you are in a session, clicking it **locates the current session** in the sidebar: it expands the owning workspace group (including nested parents and the "show more" overflow), scrolls the session row into view and flashes it for 1.6s; an already-expanded list is left untouched.
-- While a **global panel** (e.g. plugins) is open, clicking it goes **straight back to the session you were viewing** (native open path; the panel closes itself).
+- While a **global panel** (e.g. plugins) is open, clicking it goes **straight back to the session you were viewing** (native open path; the panel closes itself) and likewise **expands the group and flashes the row** in the sidebar.
 - Cases where the target cannot be revealed (search results covering the list, session gone) end silently; with the sidebar collapsed to the rail the button disappears together with the search box.
 - Manual check: run `window.__dshSessionTabs.locate()` in DevTools.
 

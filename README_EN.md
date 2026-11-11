@@ -40,6 +40,14 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 - Manual check: run `window.__dshSessionTabs.notify('done')` or `notify('pending')` in DevTools.
 - Limitation: it only runs while a DSH client is running (no notification after the window/process is closed).
 
+### Sidebar locate
+
+- A locate button sits **left of the search box** in the workspace list header (anchored to the native search field language-independently, no host class names touched).
+- While you are in a session, clicking it **locates the current session** in the sidebar: it expands the owning workspace group (including nested parents and the "show more" overflow), scrolls the session row into view and flashes it for 1.6s; an already-expanded list is left untouched.
+- While a **global panel** (e.g. plugins) is open, clicking it goes **straight back to the session you were viewing** (native open path; the panel closes itself).
+- Cases where the target cannot be revealed (search results covering the list, session gone) end silently; with the sidebar collapsed to the rail the button disappears together with the search box.
+- Manual check: run `window.__dshSessionTabs.locate()` in DevTools.
+
 ### Closing
 
 - `×` closes the tab only: it never deletes, archives or stops a session; running or waiting sessions stay retained in the background until idle.
@@ -68,6 +76,7 @@ A single-client DSH tab strip that reuses the native conversation and task servi
 | Close button | always on or on-hover (changes width) | 20px reserved, visibility-only on hover |
 | Dragging | native HTML5 drag (fires after a few pixels, eats clicks) | pointer drag, 12px threshold, live reorder |
 | Context menu | close others/left/right | pin/unpin + the three close actions, disabled per guard rules |
+| Sidebar locate | none | locate button left of the search box: expand + flash the current session; one click back from a global panel |
 
 ## Install
 

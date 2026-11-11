@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a locate button left of the workspace search box: with a session open it reveals the current session in the sidebar (expands the owning workspace group, walks the "show more" overflow, scrolls the row into view and flashes it); with a global panel such as plugins open it reopens the previously viewed session and lets the native open path close the panel. The button anchors to the native search field language-independently and disappears with it in rail mode.
 - Merge the pinned zone and the normal tab list into one continuous horizontal scroll: manual pins and attention tabs lead the same scrolling strip, so one swipe moves the whole bar instead of scrolling two separate regions. The separate pinned scroll container and its 50% width cap are gone; pinned tabs now scroll out of view with the rest.
 - Reveal a tab right after pinning or unpinning it, since it now moves to (or out of) a strip head that may sit outside the current scroll view.
 - Show the session's last user activity on the tab's workspace line, using the workspace list's own field (`updatedAt`, i.e. the last prompt — never an agent reply) and its compact relative wording (now / 5min / 3h / 2d / 3mo / 1y); blank sessions show nothing, and the tab width caps stay at 168px/108px, so a long workspace name is ellipsized first.
